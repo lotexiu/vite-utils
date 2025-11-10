@@ -9,6 +9,6 @@
     "buildx": "tsc"
   },
   "dependencies": {
-    "@repo/typescript-config": "workspace:*"
+    "@lotexiu/typescript-config": "1.0.0"
   }
 }
