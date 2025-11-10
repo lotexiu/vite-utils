@@ -42,17 +42,17 @@ export const logger = {
 /*───────────────────────────────────────────────
 │ Funções utilitárias
 ───────────────────────────────────────────────*/
-export function getLibraryEntries(srcDir: string) {
+export function getLibraryEntries<T extends boolean=false>(srcDir: string, list?: T): T extends true ? string[] : Record<string, string> {
   const files = fs.globSync(['**/*.{tsx,ts,js}', '!**/*.d.ts'], {
     cwd: srcDir,
   });
+  if (list === true) return files as any
   const entries: Record<string, string> = {};
   files.forEach(file => {
     const entryName = file.replace(/\.(ts|js)x?$/, '');
     entries[entryName] = path.resolve(srcDir, file);
   });
-
-  return entries;
+  return entries as any
 }
 
 export function extractTsconfigAliases() {
@@ -139,4 +139,13 @@ export function groupFilesByBase(filePaths: string[]): Record<string, Record<str
 
     return acc;
   }, {} as ArquivosAgrupados);
+}
+
+export function externalDependencies(): any {
+  const { peerDependencies = {}, dependencies = {} } = loadRootPackage();
+  const pkgs = [...Object.keys(peerDependencies), ...Object.keys(dependencies)];
+  return (id: string) => {
+    if (pkgs.some(pkg => id === pkg || id.startsWith(`${pkg}/`))) return true;
+    return false;
+  };
 }

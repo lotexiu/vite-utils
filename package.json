@@ -8,6 +8,8 @@
   "scripts": {
     "buildx": "tsc"
   },
+  "devDependencies": {
+  },
   "dependencies": {
     "@lotexiu/typescript-config": "workspace:*"
   }
