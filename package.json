@@ -1,0 +1,14 @@
+{
+  "name": "@lotexiu/vite-utils",
+  "version": "0.0.0",
+  "private": false,
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "buildx": "tsc"
+  },
+  "dependencies": {
+    "@repo/typescript-config": "workspace:*"
+  }
+}
