@@ -13,7 +13,9 @@ export const ROOT_DIR = process.cwd();
 │ Padrões de importação
 ───────────────────────────────────────────────*/
 export const importPatterns: Record<string, RegExp[]> = {
-	script: [/(?:import.*from\s+['"]([^'"]+)['"])|(?:require\(['"]([^'"]+)['"]\))/g],
+	script: [
+		/(?:import.*from\s+['"]([^'"]+)['"])|(?:require\(['"]([^'"]+)['"]\))/g,
+	],
 	style: [/@import\s+['"]([^'"]+)['"]/g, /@use\s+['"]([^'"]+)['"]/g],
 };
 
@@ -31,65 +33,67 @@ export const formatGroups: Record<string, string> = {
 │ Log helpers
 ───────────────────────────────────────────────*/
 export const logger = {
-  info: (msg: string) => log(chalk.blue(msg)),
-  success: (msg: string) => log(chalk.green(msg)),
-  error: (msg: string) => log(chalk.red(msg)),
-  warn: (msg: string) => log(chalk.yellow(msg)),
-  step: (msg: string) => log(chalk.cyan(`→ ${msg}`)),
+	info: (msg: string) => log(chalk.blue(msg)),
+	success: (msg: string) => log(chalk.green(msg)),
+	error: (msg: string) => log(chalk.red(msg)),
+	warn: (msg: string) => log(chalk.yellow(msg)),
+	step: (msg: string) => log(chalk.cyan(`→ ${msg}`)),
 };
-
 
 /*───────────────────────────────────────────────
 │ Funções utilitárias
 ───────────────────────────────────────────────*/
-export function getLibraryEntries<T extends boolean=false>(srcDir: string, list?: T): T extends true ? string[] : Record<string, string> {
-  const files = fs.globSync(['**/*.{tsx,ts,js}', '!**/*.d.ts'], {
-    cwd: srcDir,
-  });
-  if (list === true) return files as any
-  const entries: Record<string, string> = {};
-  files.forEach(file => {
-    const entryName = file.replace(/\.(ts|js)x?$/, '');
-    entries[entryName] = path.resolve(srcDir, file);
-  });
-  return entries as any
+export function getLibraryEntries<T extends boolean = false>(
+	srcDir: string,
+	list?: T,
+): T extends true ? string[] : Record<string, string> {
+	const files = fs.globSync(["**/*.{tsx,ts,js}", "!**/*.d.ts"], {
+		cwd: srcDir,
+	});
+	if (list === true) return files as any;
+	const entries: Record<string, string> = {};
+	files.forEach((file) => {
+		const entryName = file.replace(/\.(ts|js)x?$/, "");
+		entries[entryName] = path.resolve(srcDir, file);
+	});
+	return entries as any;
 }
 
 export function extractTsconfigAliases() {
-  const tsconfigPath = path.resolve(process.cwd(), "tsconfig.json");
-  if (!fs.existsSync(tsconfigPath)) return {};
-  const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf8"));
-  const paths: Record<string, string[]> = tsconfig.compilerOptions?.paths || {};
-  const baseUrl = tsconfig.compilerOptions?.baseUrl || ".";
-  const aliases: Record<string, string> = {};
-  for (const [alias, targets] of Object.entries(paths)) {
-    const key = alias.replace(/\/\*$/, "");
-    const value = targets[0]?.replace(/\/\*$/, "");
-    if (value) {
-      aliases[key] = path.resolve(process.cwd(), baseUrl, value);
-    }
-  }
-  return aliases;
+	const tsconfigPath = path.resolve(process.cwd(), "tsconfig.json");
+	if (!fs.existsSync(tsconfigPath)) return {};
+	const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf8"));
+	const paths: Record<string, string[]> = tsconfig.compilerOptions?.paths || {};
+	const baseUrl = tsconfig.compilerOptions?.baseUrl || ".";
+	const aliases: Record<string, string> = {};
+	for (const [alias, targets] of Object.entries(paths)) {
+		const key = alias.replace(/\/\*$/, "");
+		const value = targets[0]?.replace(/\/\*$/, "");
+		if (value) {
+			aliases[key] = path.resolve(process.cwd(), baseUrl, value);
+		}
+	}
+	return aliases;
 }
 
 export function loadRootPackage(): Record<string, any> {
-  const spinner = ora("Lendo package.json raiz...").start();
-  const pkgPath = path.join(ROOT_DIR, "package.json");
+	const spinner = ora("Lendo package.json raiz...").start();
+	const pkgPath = path.join(ROOT_DIR, "package.json");
 
-  if (!fs.existsSync(pkgPath)) {
-    spinner.fail("package.json não encontrado.");
-    process.exit(1);
-  }
+	if (!fs.existsSync(pkgPath)) {
+		spinner.fail("package.json não encontrado.");
+		process.exit(1);
+	}
 
-  try {
-    const data = fs.readJSONSync(pkgPath, "utf-8");
-    spinner.succeed("package.json carregado!");
-    return data;
-  } catch (e) {
-    spinner.fail("Erro ao ler package.json");
-    logger.error(String(e));
-    process.exit(1);
-  }
+	try {
+		const data = fs.readJSONSync(pkgPath, "utf-8");
+		spinner.succeed("package.json carregado!");
+		return data;
+	} catch (e) {
+		spinner.fail("Erro ao ler package.json");
+		logger.error(String(e));
+		process.exit(1);
+	}
 }
 
 export function buildPackageName(author: string, folder: string) {
@@ -102,50 +106,56 @@ export function buildPackageName(author: string, folder: string) {
  * @param filePaths Uma lista de caminhos de arquivo (strings).
  * @returns Um objeto onde as chaves são os caminhos base e os valores são objetos de mapeamento de extensão.
  */
-export function groupFilesByBase(filePaths: string[]): Record<string, Record<string, string>> {
-  type ArquivosAgrupados = {
-    [caminhoBase: string]: {
-      [extensao: string]: string;
-    };
-  };
+export function groupFilesByBase(
+	filePaths: string[],
+): Record<string, Record<string, string>> {
+	type ArquivosAgrupados = {
+		[caminhoBase: string]: {
+			[extensao: string]: string;
+		};
+	};
 
-  return filePaths.reduce((acc, caminhoCompleto) => {
-    const ultimaBarraIndex = caminhoCompleto.lastIndexOf('/');
-    const nomeArquivo = ultimaBarraIndex === -1 
-      ? caminhoCompleto 
-      : caminhoCompleto.substring(ultimaBarraIndex + 1);
+	return filePaths.reduce((acc, caminhoCompleto) => {
+		const ultimaBarraIndex = caminhoCompleto.lastIndexOf("/");
+		const nomeArquivo =
+			ultimaBarraIndex === -1
+				? caminhoCompleto
+				: caminhoCompleto.substring(ultimaBarraIndex + 1);
 
-    const primeiroPontoNomeArquivoIndex = nomeArquivo.indexOf('.');
+		const primeiroPontoNomeArquivoIndex = nomeArquivo.indexOf(".");
 
-    // Caso de arquivo sem extensão (improvável no seu exemplo, mas robusto)
-    if (primeiroPontoNomeArquivoIndex === -1) {
-      const caminhoBase = caminhoCompleto;
-      acc[caminhoBase] = { ...(acc[caminhoBase] || {}), '': caminhoCompleto };
-      return acc;
-    }
+		// Caso de arquivo sem extensão (improvável no seu exemplo, mas robusto)
+		if (primeiroPontoNomeArquivoIndex === -1) {
+			const caminhoBase = caminhoCompleto;
+			acc[caminhoBase] = { ...(acc[caminhoBase] || {}), "": caminhoCompleto };
+			return acc;
+		}
 
-    const nomeBase = nomeArquivo.substring(0, primeiroPontoNomeArquivoIndex);
-    const chaveDaExtensao = nomeArquivo.substring(primeiroPontoNomeArquivoIndex + 1);
-    const diretorio = ultimaBarraIndex === -1 
-      ? '' 
-      : caminhoCompleto.substring(0, ultimaBarraIndex + 1);
+		const nomeBase = nomeArquivo.substring(0, primeiroPontoNomeArquivoIndex);
+		const chaveDaExtensao = nomeArquivo.substring(
+			primeiroPontoNomeArquivoIndex + 1,
+		);
+		const diretorio =
+			ultimaBarraIndex === -1
+				? ""
+				: caminhoCompleto.substring(0, ultimaBarraIndex + 1);
 
-    const baseParaAgrupamento = diretorio + nomeBase;
+		const baseParaAgrupamento = diretorio + nomeBase;
 
-    acc[baseParaAgrupamento] = {
-      ...(acc[baseParaAgrupamento] || {}),
-      [chaveDaExtensao]: caminhoCompleto,
-    };
+		acc[baseParaAgrupamento] = {
+			...(acc[baseParaAgrupamento] || {}),
+			[chaveDaExtensao]: caminhoCompleto,
+		};
 
-    return acc;
-  }, {} as ArquivosAgrupados);
+		return acc;
+	}, {} as ArquivosAgrupados);
 }
 
 export function externalDependencies(): any {
-  const { peerDependencies = {}, dependencies = {} } = loadRootPackage();
-  const pkgs = [...Object.keys(peerDependencies), ...Object.keys(dependencies)];
-  return (id: string) => {
-    if (pkgs.some(pkg => id === pkg || id.startsWith(`${pkg}/`))) return true;
-    return false;
-  };
+	const { peerDependencies = {}, dependencies = {} } = loadRootPackage();
+	const pkgs = [...Object.keys(peerDependencies), ...Object.keys(dependencies)];
+	return (id: string) => {
+		if (pkgs.some((pkg) => id === pkg || id.startsWith(`${pkg}/`))) return true;
+		return false;
+	};
 }
