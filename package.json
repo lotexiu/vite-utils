@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vite": "^5.4.21"
+    "vite": "^7.2.2"
   },
   "dependencies": {
     "@lotexiu/typescript-config": "workspace:*",

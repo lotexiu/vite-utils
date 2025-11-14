@@ -13,7 +13,7 @@ import { groupFilesByBase, loadRootPackage, ROOT_DIR } from "../utils.ts";
 export function updatePackageJsonPlugin(): PluginOption {
 	const pkgPath = path.resolve(ROOT_DIR, "package.json");
 	let outDir: string;
-	const ignoredFiles: string[] = [];
+	const ignoredFiles = new Set<string>();
 
 	return {
 		name: "update-package-json-exports",
@@ -22,24 +22,22 @@ export function updatePackageJsonPlugin(): PluginOption {
 		},
 
 		generateBundle(_options, bundle) {
-			ignoredFiles.length = 0;
 			for (const fileName in bundle) {
 				const file = bundle[fileName];
-				if (file.type === "chunk" && !file.isEntry) {
-					ignoredFiles.push(fileName);
+				if (file.type === "chunk" && (file.facadeModuleId == null || !file.isEntry)) {
+					ignoredFiles.add(fileName);
 				}
 				if (fileName.endsWith(".map")) {
-					ignoredFiles.push(fileName);
+					ignoredFiles.add(fileName);
 				}
 			}
 		},
 
 		async closeBundle() {
-			const pathOutDir = path.relative(ROOT_DIR, outDir);
 			const allFiles = fs
 				.globSync(`${outDir}/**/*.*`)
-				.map((f) => path.relative(pathOutDir, f));
-			const files = allFiles.filter((file) => !ignoredFiles.includes(file));
+				.map((f) => path.relative(outDir, f));
+			const files = allFiles.filter((file) => !ignoredFiles.has(file));
 			const groupedFiles: Record<
 				string,
 				Record<string, string>
