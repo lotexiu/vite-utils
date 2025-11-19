@@ -4,14 +4,9 @@ import type { PluginOption } from "vite";
 import { groupFilesByBase, loadRootPackage, ROOT_DIR } from "../utils.ts";
 
 /**
- * @param {object} options
- * @param {string} options.outputDir - O diretório de saída da build (ex: 'dist')
- * @param {string} options.mainFile - O arquivo JS/MJS principal (ex: 'index.js')
- * @param {string} options.typesFile - O arquivo de declaração de tipos (ex: 'index.d.ts')
  * @returns {import('vite').Plugin}
  */
-export function updatePackageJsonPlugin(): PluginOption {
-	const pkgPath = path.resolve(ROOT_DIR, "package.json");
+export function distPackageJson(pkgName:string): PluginOption {
 	let outDir: string;
 	const ignoredFiles = new Set<string>();
 
@@ -44,11 +39,13 @@ export function updatePackageJsonPlugin(): PluginOption {
 			> = groupFilesByBase(files);
 			const pkg = loadRootPackage();
 			const previousExports = pkg.exports || {};
+			pkg.name = pkgName;
+			pkg.scripts = {};
 			pkg.exports = {};
 			Object.entries(groupedFiles).forEach(([base, variants]) => {
 				const relativePath = function (file: string) {
 					if (!file) return undefined;
-					return `./${path.relative(ROOT_DIR, path.join(outDir, file))}`;
+					return `./${path.relative(outDir, path.join(outDir, file))}`;
 				};
 				pkg.exports[`./${base}`] = {
 					import: {
@@ -94,7 +91,7 @@ export function updatePackageJsonPlugin(): PluginOption {
 				newPkg !== prevPkg &&
 				[null, undefined, "", "{}"].includes(newPkg) === false
 			) {
-				fs.writeJSON(pkgPath, pkg, { spaces: 2 });
+				fs.writeJSON(path.resolve(ROOT_DIR, outDir, "package.json"), pkg, { spaces: 2 });
 			}
 		},
 	};
