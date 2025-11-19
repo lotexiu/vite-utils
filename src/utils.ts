@@ -108,6 +108,7 @@ export function buildPackageName(author: string, folder: string) {
  */
 export function groupFilesByBase(
 	filePaths: string[],
+	compiledOutputPath: string,
 ): Record<string, Record<string, string>> {
 	type ArquivosAgrupados = {
 		[caminhoBase: string]: {
@@ -126,7 +127,7 @@ export function groupFilesByBase(
 
 		// Caso de arquivo sem extensão (improvável no seu exemplo, mas robusto)
 		if (primeiroPontoNomeArquivoIndex === -1) {
-			const caminhoBase = caminhoCompleto;
+			const caminhoBase = path.relative(compiledOutputPath, caminhoCompleto);
 			acc[caminhoBase] = { ...(acc[caminhoBase] || {}), "": caminhoCompleto };
 			return acc;
 		}
@@ -140,7 +141,9 @@ export function groupFilesByBase(
 				? ""
 				: caminhoCompleto.substring(0, ultimaBarraIndex + 1);
 
-		const baseParaAgrupamento = diretorio + nomeBase;
+		const baseParaAgrupamento = diretorio.startsWith(compiledOutputPath)
+			? path.relative(compiledOutputPath, path.join(diretorio, nomeBase))
+			: path.join(diretorio, nomeBase);
 
 		acc[baseParaAgrupamento] = {
 			...(acc[baseParaAgrupamento] || {}),
