@@ -77,21 +77,36 @@ function sanitizePackageDependencies(pkg: Record<string, any>) {
 }
 
 function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<string, Record<string, string>>, outDir: string) {
-	pkg.exports = {
-		"./package.json": {
-			default: "./package.json",
-		},
-		".": {
-			types: "./index.d.ts",
-			import: "./index.js",
-			default: "./index.js",
-		}
-	};
-	pkg.sideEffects = false;
-	pkg.typings = "./index.d.ts";
-	pkg.module = "./index.js";
-	pkg.main = "./index.js";
+	delete pkg.exports;
+	pkg.sideEffects = true;
 	pkg.type = "module";
+
+	if (groupedFiles["index"]) {
+		const {
+			js, mjs, cjs,
+			"d.ts":dts,
+			"d.mts":dmts,
+			"d.cts":dcts,
+		} = groupedFiles["index"];
+
+		pkg.typings = dmts || dcts || dts || undefined;
+		pkg.module = mjs || js || cjs || undefined;
+		pkg.main = cjs || js || mjs || undefined;
+		pkg.exports = {
+			".": {
+				types: `./${path.relative(outDir, path.join(outDir, dmts || dcts || dts))}`,
+				import: `./${path.relative(outDir, path.join(outDir, mjs || js || cjs))}`,
+				require: `./${path.relative(outDir, path.join(outDir, cjs || js || mjs))}`,
+				default: `./${path.relative(outDir, path.join(outDir, js || cjs || mjs))}`,
+			},
+		}
+		delete groupedFiles["index"];
+	}	else {
+		pkg.exports = { };
+	}
+	pkg.exports["./package.json"] = {
+		default: "./package.json",
+	}
 
 	Object.entries(groupedFiles).forEach(([base, variants]) => {
 		const getByOrder = function (keys: string[]) {
@@ -110,6 +125,7 @@ function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<s
 		pkg.exports[`./${base}`] = {
 			types: relativePath(["d.mts","d.cts","d.ts"]),
 			import: relativePath(["mjs","js","cjs","json","wasm"]),
+			require: relativePath(["cjs","js","mjs","json","wasm"]),
 			default: relativePath(["js","cjs","mjs","json","wasm"]),
 			style: relativePath(["css","scss","sass","less","styl",]),
 			sass: relativePath(["scss", "sass"]),
