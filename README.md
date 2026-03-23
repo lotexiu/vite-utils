@@ -81,33 +81,6 @@ export default defineConfig({
 
 ---
 
-### 5. 🔑 PreserveKeywords
-
-**⭐ NOVO!** Preserva keywords TypeScript (`abstract`, `readonly`, `private`, etc.) em arquivos `.d.ts` gerados.
-
-```typescript
-import { preserveKeywordsPlugin } from '@lotexiu/vite-utils/plugins/PreserveKeywords';
-
-export default defineConfig({
-  plugins: [
-    preserveKeywordsPlugin({
-      srcDir: 'src',
-      enabled: true,
-    }),
-  ],
-});
-```
-
-**Benefícios:**
-- Mantém `abstract` em classes e métodos
-- Preserva modificadores de acesso (`private`, `protected`, `public`)
-- Restaura `readonly`, `static`, `async`, `override`
-- Essencial para APIs de bibliotecas TypeScript
-
-📖 **[Documentação completa do PreserveKeywords](./README-PreserveKeywords.md)**
-
----
-
 ## Instalação
 
 ```bash
@@ -129,7 +102,6 @@ import {
   copyAllSASSPlugin,
   excludeSASSPProcessPlugin,
   updatePackageJsonPlugin,
-  preserveKeywordsPlugin
 } from '@lotexiu/vite-utils';
 
 export default defineConfig({
@@ -138,7 +110,6 @@ export default defineConfig({
     copyAllSASSPlugin('src'),
     excludeSASSPProcessPlugin('src'),
     updatePackageJsonPlugin(),
-    preserveKeywordsPlugin({ srcDir: 'src', enabled: true }),
   ],
   build: {
     lib: {
@@ -163,9 +134,6 @@ Veja o [exemplo completo](./examples/vite.config.example.ts).
 O pacote usa exports granulares:
 
 ```typescript
-// Importar plugin específico
-import { preserveKeywordsPlugin } from '@lotexiu/vite-utils/plugins/PreserveKeywords';
-
 // Importar utilitários
 import { someUtil } from '@lotexiu/vite-utils/utils';
 ```
@@ -185,7 +153,6 @@ import { someUtil } from '@lotexiu/vite-utils/utils';
 export default defineConfig({
   plugins: [
     betterOutDirCleanPlugin(),
-    preserveKeywordsPlugin(),
   ],
   build: {
     lib: {
@@ -207,7 +174,6 @@ export default defineConfig({
     betterOutDirCleanPlugin(),
     copyAllSASSPlugin('src'),
     excludeSASSPProcessPlugin('src'),
-    preserveKeywordsPlugin(),
   ],
 });
 ```
@@ -218,7 +184,6 @@ export default defineConfig({
 export default defineConfig({
   plugins: [
     betterOutDirCleanPlugin(),
-    preserveKeywordsPlugin({ srcDir: 'src' }),
   ],
   build: {
     lib: {
@@ -265,15 +230,6 @@ pnpm install
 2. Confirme que está usando `PluginOption` do Vite
 3. Verifique logs do build
 
-### PreserveKeywords não encontra arquivos
-
-Configure `srcDir` corretamente:
-
-```typescript
-preserveKeywordsPlugin({
-  srcDir: path.resolve(__dirname, 'src'),
-})
-```
 
 ## Licença
 

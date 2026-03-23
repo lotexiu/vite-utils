@@ -30,7 +30,7 @@ export function betterOutDirCleanPlugin(): PluginOption {
 			if (!fs.existsSync(outDir)) {
 				return;
 			}
-			const existingFiles = fs.globSync(`${outDir}/**/*.*`);
+			const existingFiles = fs.globSync(`${outDir}/**/*.{js,cjs}`);
 
 			let deletedCount = 0;
 

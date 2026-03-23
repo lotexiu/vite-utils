@@ -2,8 +2,7 @@ import { defineConfig } from "vite";
 import { betterOutDirCleanPlugin } from "../src/plugins/BetterOutDirClean";
 import { copyAllSASSPlugin } from "../src/plugins/CopyAllSASS";
 import { excludeSASSPProcessPlugin } from "../src/plugins/ExcludeSASSPProcess";
-import { updatePackageJsonPlugin } from "../src/plugins/MainPackage";
-import { preserveKeywordsPlugin } from "../src/plugins/PreserveKeywords";
+import { packageJsonPlugin } from "../src/plugins/PackageJsonPlugin";
 
 /**
  * Exemplo de configuração Vite com todos os plugins @lotexiu/vite-utils
@@ -21,14 +20,8 @@ export default defineConfig({
 		// 3. Exclui SASS do processamento normal do Vite
 		excludeSASSPProcessPlugin("src"),
 
-		// 4. Gera package.json otimizado para o build
-		updatePackageJsonPlugin(),
-
-		// 5. Preserva keywords TypeScript em arquivos .d.ts
-		preserveKeywordsPlugin({
-			srcDir: "src",
-			enabled: true,
-		}),
+		// 4. Gera package.json ou atualiza exports com base nos arquivos gerados nos caminhos especificados
+		packageJsonPlugin(['dist', './']),
 	],
 
 	build: {
