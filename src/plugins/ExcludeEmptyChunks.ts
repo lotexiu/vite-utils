@@ -13,9 +13,10 @@ export function excludeEmptyChunksPlugin(): PluginOption {
 		name: "exclude-empty-chunks-plugin",
 		generateBundle(_, bundle) {
 			for (const [name, chunk] of Object.entries(bundle)) {
-				if (chunk.type === "chunk" && chunk.exports.length === 0) {
-					delete bundle[name];
-				}
+				if (chunk.type != 'chunk') continue;
+				const isEmptyChunk = chunk.code.trim().length == 0 || chunk.code.trim() == '"use strict";'
+				if (!isEmptyChunk) continue;
+				delete bundle[name];
 			}
 		},
 	};
