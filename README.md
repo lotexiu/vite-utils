@@ -81,6 +81,30 @@ export default defineConfig({
 
 ---
 
+### 5. 🧾 IndexPlugin
+
+Gera automaticamente o `src/index.ts` de uma biblioteca a partir dos arquivos exportáveis.
+
+```typescript
+import { createIndexFile } from '@lotexiu/vite-utils/plugins/IndexPlugin';
+
+createIndexFile('src', {
+  ignoredDirs: ['__tests__', 'internal'],
+});
+```
+
+**Comportamento:**
+- Ignora `index.ts` e arquivos `.d.ts`
+- Ignora arquivos cujo nome começa com `.`
+- Ignora arquivos dentro de pastas cujo nome começa com `.`
+- Permite ignorar diretórios adicionais por nome via `ignoredDirs`
+- Usa a API oficial do `typescript` para ler os exports públicos de cada arquivo
+- Gera `export { ... }` explícitos apenas para símbolos de runtime
+- Ignora exports marcados com `@internal` na documentação JSDoc
+- Ignora módulos que expõem apenas tipos no `index.ts` raiz
+
+---
+
 ## Instalação
 
 ```bash

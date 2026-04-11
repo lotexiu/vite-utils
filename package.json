@@ -8,12 +8,10 @@
   "scripts": {
     "buildx": "tsc"
   },
-  "devDependencies": {
-    "typescript": "^5.9.3"
-  },
   "dependencies": {
     "@lotexiu/typescript-config": "workspace:*",
-    "fs-extra": "^11.3.2"
+    "fs-extra": "^11.3.2",
+    "typescript": "^5.9.3"
   },
 	"type": "module"
 }

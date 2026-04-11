@@ -1,6 +1,7 @@
 import type { PluginOption } from "vite";
 import fs from "fs-extra";
 import path from "path";
+import { logger } from "../utils.ts";
 
 /**
  * Retorna o nome base do arquivo (ex: 'index.js' -> 'index')
@@ -42,8 +43,8 @@ export function betterOutDirCleanPlugin(): PluginOption {
 				}
 			}
 			if (deletedCount > 0) {
-				console.log(
-					`[SelectiveClean] Limpeza seletiva concluída. ${deletedCount} arquivo(s) JS órfão(s) removido(s).`,
+				logger.info(
+					`[BetterOutDirClean] Limpeza seletiva concluída. ${deletedCount} arquivo(s) JS órfão(s) removido(s).`,
 				);
 			}
 		},

@@ -31,13 +31,16 @@ export function packageJsonPlugin(desiredOutDirs?: string[]): PluginOption {
 		},
 
 		async closeBundle() {
-			const allFiles = fs
-				.globSync(`${compiledOutputPath}/**/*.*`)
-				.filter(f => !ignoredFiles.some(ignored => f.endsWith(ignored)));
+			const discoveredFiles = fs.globSync(`${compiledOutputPath}/**/*.*`);
+			const exportedFiles = discoveredFiles.filter(f => {
+				return !ignoredFiles.some(ignored => f.endsWith(ignored));
+			});
 
 			outDirs.forEach((outDir) => {
-				const relativeFiles = allFiles.map((f) => path.relative(outDir, f));
-				const groupedFiles = groupFilesByBase(relativeFiles, compiledOutputPath);
+				const relativeDiscoveredFiles = discoveredFiles.map((f) => path.relative(outDir, f));
+				const relativeExportedFiles = exportedFiles.map((f) => path.relative(outDir, f));
+				const groupedAllFiles = groupFilesByBase(relativeDiscoveredFiles, compiledOutputPath);
+				const groupedFiles = groupFilesByBase(relativeExportedFiles, compiledOutputPath);
 				const pkg = loadRootPackage();
 				const previousExports = pkg.exports || {};
 				if (outDir == compiledOutputPath) {
@@ -49,7 +52,7 @@ export function packageJsonPlugin(desiredOutDirs?: string[]): PluginOption {
 					};
 					sanitizePackageDependencies(pkg);
 				}
-				generatePackageExports(pkg, groupedFiles, outDir);
+				generatePackageExports(pkg, groupedFiles, groupedAllFiles, outDir);
 				const [newPkg, prevPkg] = [
 					JSON.stringify(pkg.exports, null, 2),
 					JSON.stringify(previousExports, null, 2),
@@ -76,7 +79,28 @@ function sanitizePackageDependencies(pkg: Record<string, any>) {
 	});
 }
 
-function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<string, Record<string, string>>, outDir: string) {
+function hasRuntimeVariant(variants?: Record<string, string>) {
+	if (!variants) {
+		return false;
+	}
+
+	return ["js", "mjs", "cjs", "json", "wasm"].some((extension) => {
+		return Boolean(variants[extension]);
+	});
+}
+
+function compactExportEntry(entry: Record<string, string | undefined>) {
+	return Object.fromEntries(
+		Object.entries(entry).filter(([, value]) => value != null),
+	);
+}
+
+function generatePackageExports(
+	pkg: Record<string, any>,
+	groupedFiles: Record<string, Record<string, string>>,
+	groupedAllFiles: Record<string, Record<string, string>>,
+	outDir: string,
+) {
 	delete pkg.exports;
 	pkg.sideEffects = true;
 	pkg.type = "module";
@@ -93,14 +117,15 @@ function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<s
 		pkg.module = mjs || js || cjs || undefined;
 		pkg.main = cjs || js || mjs || undefined;
 		pkg.exports = {
-			".": {
+			".": compactExportEntry({
 				types: `./${path.relative(outDir, path.join(outDir, dmts || dcts || dts))}`,
 				import: `./${path.relative(outDir, path.join(outDir, mjs || js || cjs))}`,
 				require: `./${path.relative(outDir, path.join(outDir, cjs || js || mjs))}`,
 				default: `./${path.relative(outDir, path.join(outDir, js || cjs || mjs))}`,
-			},
+			}),
 		}
 		delete groupedFiles["index"];
+		delete groupedAllFiles["index"];
 	}	else {
 		pkg.exports = { };
 	}
@@ -122,7 +147,7 @@ function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<s
 			if (!file) return undefined;
 			return `./${path.relative(outDir, path.join(outDir, file))}`;
 		};
-		pkg.exports[`./${base}`] = {
+		const exportEntry = compactExportEntry({
 			types: relativePath(["d.mts","d.cts","d.ts"]),
 			import: relativePath(["mjs","js","cjs","json","wasm"]),
 			require: relativePath(["cjs","js","mjs","json","wasm"]),
@@ -130,6 +155,18 @@ function generatePackageExports(pkg: Record<string, any>, groupedFiles: Record<s
 			style: relativePath(["css","scss","sass","less","styl",]),
 			sass: relativePath(["scss", "sass"]),
 			less: relativePath(["less"]),
-		};
+		});
+		const runtimeWasBuilt = hasRuntimeVariant(groupedAllFiles[base]);
+		const runtimeIsExported = hasRuntimeVariant(variants);
+
+		if (!runtimeIsExported && runtimeWasBuilt) {
+			return;
+		}
+
+		if (Object.keys(exportEntry).length === 0) {
+			return;
+		}
+
+		pkg.exports[`./${base}`] = exportEntry;
 	});
 }

@@ -3,31 +3,12 @@ import fs from "fs-extra";
 import { log } from "console";
 import chalk from "chalk";
 import ora from "ora";
+import ts from "typescript";
 
 /*───────────────────────────────────────────────
 │ Configurações globais
 ───────────────────────────────────────────────*/
 export const ROOT_DIR = process.cwd();
-
-/*───────────────────────────────────────────────
-│ Padrões de importação
-───────────────────────────────────────────────*/
-export const importPatterns: Record<string, RegExp[]> = {
-	script: [
-		/(?:import.*from\s+['"]([^'"]+)['"])|(?:require\(['"]([^'"]+)['"]\))/g,
-	],
-	style: [/@import\s+['"]([^'"]+)['"]/g, /@use\s+['"]([^'"]+)['"]/g],
-};
-
-export const formatGroups: Record<string, string> = {
-	ts: "script",
-	tsx: "script",
-	js: "script",
-	jsx: "script",
-	sass: "style",
-	scss: "style",
-	css: "style",
-};
 
 /*───────────────────────────────────────────────
 │ Log helpers
@@ -40,21 +21,275 @@ export const logger = {
 	step: (msg: string) => log(chalk.cyan(`→ ${msg}`)),
 };
 
+export type TLibrarySourceOptions = {
+	ignoredDirs?: string[];
+	includeTypeOnlyFiles?: boolean;
+	includeIndexFile?: boolean;
+};
+
+export type TLibrarySourceFile = {
+	filePath: string;
+	relativePath: string;
+	importPath: string;
+	valueExports: string[];
+	isRequired: boolean;
+};
+
+function getModuleSymbol(
+	checker: ts.TypeChecker,
+	sourceFile: ts.SourceFile,
+): ts.Symbol | undefined {
+	return checker.getSymbolAtLocation(sourceFile);
+}
+
+function getAliasedSymbol(
+	symbol: ts.Symbol,
+	checker: ts.TypeChecker,
+): ts.Symbol {
+	if (!(symbol.flags & ts.SymbolFlags.Alias)) {
+		return symbol;
+	}
+
+	try {
+		return checker.getAliasedSymbol(symbol);
+	} catch {
+		return symbol;
+	}
+}
+
+function getNodeChain(node: ts.Node): ts.Node[] {
+	const chain = [node];
+	let current = node.parent;
+
+	while (current) {
+		chain.push(current);
+		current = current.parent;
+	}
+
+	return chain;
+}
+
+function hasJSDocTag(nodes: ts.Node[], tagName: string): boolean {
+	return nodes.some(node => {
+		return ts.getJSDocTags(node).some(tag => tag.tagName.text === tagName);
+	});
+}
+
+function hasInternalJSDoc(nodes: ts.Node[]): boolean {
+	return hasJSDocTag(nodes, "internal");
+}
+
+function hasRequiredJSDoc(nodes: ts.Node[]): boolean {
+	return hasJSDocTag(nodes, "required");
+}
+
+function isInternalSymbol(
+	symbol: ts.Symbol,
+	checker: ts.TypeChecker,
+	visited = new Set<ts.Symbol>(),
+): boolean {
+	if (visited.has(symbol)) {
+		return false;
+	}
+
+	visited.add(symbol);
+
+	if (hasInternalJSDoc((symbol.declarations ?? []).flatMap(getNodeChain))) {
+		return true;
+	}
+
+	if (symbol.flags & ts.SymbolFlags.Alias) {
+		const aliasedSymbol = getAliasedSymbol(symbol, checker);
+		if (aliasedSymbol !== symbol) {
+			return isInternalSymbol(aliasedSymbol, checker, visited);
+		}
+	}
+
+	return false;
+}
+
+function isTypeOnlyExportDeclaration(declaration: ts.Declaration): boolean {
+	if (ts.isExportSpecifier(declaration)) {
+		return declaration.isTypeOnly || declaration.parent.parent.isTypeOnly;
+	}
+
+	if (ts.isExportDeclaration(declaration)) {
+		return declaration.isTypeOnly;
+	}
+
+	return false;
+}
+
+function isTypeOnlyExport(
+	symbol: ts.Symbol,
+	resolvedSymbol: ts.Symbol,
+): boolean {
+	if ((symbol.declarations ?? []).some(isTypeOnlyExportDeclaration)) {
+		return true;
+	}
+
+	return (resolvedSymbol.flags & ts.SymbolFlags.Value) === 0;
+}
+
+function getDeclarationStart(
+	symbol: ts.Symbol,
+	resolvedSymbol: ts.Symbol,
+): number {
+	const declarations = [
+		...(symbol.declarations ?? []),
+		...(resolvedSymbol.declarations ?? []),
+	];
+
+	if (declarations.length === 0) {
+		return Number.MAX_SAFE_INTEGER;
+	}
+
+	return Math.min(...declarations.map(declaration => declaration.getStart()));
+}
+
+function collectFileValueExports(
+	program: ts.Program,
+	checker: ts.TypeChecker,
+	filePath: string,
+): string[] {
+	const sourceFile = program.getSourceFile(filePath);
+	if (!sourceFile) {
+		return [];
+	}
+
+	const moduleSymbol = getModuleSymbol(checker, sourceFile);
+	if (!moduleSymbol) {
+		return [];
+	}
+
+	return checker
+		.getExportsOfModule(moduleSymbol)
+		.map(symbol => {
+			const resolvedSymbol = getAliasedSymbol(symbol, checker);
+			return {
+				name: symbol.getName(),
+				isInternal: isInternalSymbol(symbol, checker),
+				isTypeOnly: isTypeOnlyExport(symbol, resolvedSymbol),
+				declarationStart: getDeclarationStart(symbol, resolvedSymbol),
+			};
+		})
+		.filter(symbol => {
+			return symbol.name !== "__export" && !symbol.isInternal && !symbol.isTypeOnly;
+		})
+		.sort((left, right) => {
+			if (left.declarationStart !== right.declarationStart) {
+				return left.declarationStart - right.declarationStart;
+			}
+
+			return left.name.localeCompare(right.name);
+		})
+		.map(symbol => symbol.name);
+}
+
+function isRequiredFile(
+	program: ts.Program,
+	filePath: string,
+): boolean {
+	const sourceFile = program.getSourceFile(filePath);
+	if (!sourceFile) {
+		return false;
+	}
+
+	const nodes: ts.Node[] = [];
+	const visit = (node: ts.Node) => {
+		nodes.push(node);
+		ts.forEachChild(node, visit);
+	};
+	visit(sourceFile);
+
+	return hasRequiredJSDoc(nodes);
+}
+
+export function shouldIgnoreLibraryFile(
+	srcDir: string,
+	filePath: string,
+	options: TLibrarySourceOptions = {},
+): boolean {
+	const rootIndex = path.join(srcDir, "index.ts");
+	const ignoredDirs = options.ignoredDirs ?? [];
+
+	if ((!options.includeIndexFile && filePath === rootIndex) || filePath.endsWith(".d.ts")) {
+		return true;
+	}
+
+	const relativePath = path.relative(srcDir, filePath);
+	const pathParts = relativePath.split(path.sep).filter(Boolean);
+	const fileName = path.basename(filePath);
+
+	if (fileName.startsWith(".")) {
+		return true;
+	}
+
+	return pathParts.some((part, index) => {
+		const isDirectory = index < pathParts.length - 1;
+		return isDirectory && (part.startsWith(".") || ignoredDirs.includes(part));
+	});
+}
+
+export function getLibrarySourceFiles(
+	srcDir: string,
+	options: TLibrarySourceOptions = {},
+): TLibrarySourceFile[] {
+	const filePaths = fs
+		.globSync(`${srcDir}/**/*.{tsx,ts,js}`)
+		.filter(filePath => !shouldIgnoreLibraryFile(srcDir, filePath, options))
+		.sort((left, right) => left.localeCompare(right));
+
+	if (filePaths.length === 0) {
+		return [];
+	}
+
+	const program = ts.createProgram(filePaths, {
+		allowJs: true,
+		checkJs: false,
+		jsx: ts.JsxEmit.Preserve,
+		module: ts.ModuleKind.ESNext,
+		moduleResolution: ts.ModuleResolutionKind.Bundler,
+		skipLibCheck: true,
+		target: ts.ScriptTarget.ESNext,
+	});
+	const checker = program.getTypeChecker();
+
+	return filePaths
+		.map((filePath) => {
+			const relativePath = path
+				.relative(srcDir, filePath)
+				.replace(/\.[^/.]+$/, "")
+				.replace(/\\/g, "/");
+			const valueExports = collectFileValueExports(program, checker, filePath);
+			const isRequired = isRequiredFile(program, filePath);
+
+			return {
+				filePath,
+				relativePath,
+				importPath: `./${relativePath}`,
+				valueExports,
+				isRequired,
+			};
+		})
+		.filter((file) => {
+			return options.includeTypeOnlyFiles || file.valueExports.length > 0 || file.isRequired;
+		});
+}
+
 /*───────────────────────────────────────────────
 │ Funções utilitárias
 ───────────────────────────────────────────────*/
 export function getLibraryEntries<T extends boolean = false>(
 	srcDir: string,
 	list?: T,
+	options: TLibrarySourceOptions = {},
 ): T extends true ? string[] : Record<string, string> {
-	const files = fs.globSync(["**/*.{tsx,ts,js}", "!**/*.d.ts"], {
-		cwd: srcDir,
-	});
-	if (list === true) return files as any;
+	const files = getLibrarySourceFiles(srcDir, options);
+	if (list === true) return files.map((file) => file.relativePath) as any;
 	const entries: Record<string, string> = {};
 	files.forEach((file) => {
-		const entryName = file.replace(/\.(ts|js)x?$/, "");
-		entries[entryName] = path.resolve(srcDir, file);
+		entries[file.relativePath] = file.filePath;
 	});
 	return entries as any;
 }
@@ -94,10 +329,6 @@ export function loadRootPackage(): Record<string, any> {
 		logger.error(String(e));
 		process.exit(1);
 	}
-}
-
-export function buildPackageName(author: string, folder: string) {
-	return `@${author}/${folder}`;
 }
 
 /**
