@@ -23,6 +23,7 @@ export const logger = {
 
 export type TLibrarySourceOptions = {
 	ignoredDirs?: string[];
+	ignoredPathPatterns?: Array<string | RegExp>;
 	includeTypeOnlyFiles?: boolean;
 	includeIndexFile?: boolean;
 };
@@ -212,14 +213,26 @@ export function shouldIgnoreLibraryFile(
 ): boolean {
 	const rootIndex = path.join(srcDir, "index.ts");
 	const ignoredDirs = options.ignoredDirs ?? [];
+	const ignoredPathPatterns = options.ignoredPathPatterns ?? [];
 
 	if ((!options.includeIndexFile && filePath === rootIndex) || filePath.endsWith(".d.ts")) {
 		return true;
 	}
 
 	const relativePath = path.relative(srcDir, filePath);
+	const normalizedRelativePath = relativePath.replace(/\\/g, "/");
 	const pathParts = relativePath.split(path.sep).filter(Boolean);
 	const fileName = path.basename(filePath);
+
+	if (ignoredPathPatterns.some((pattern) => {
+		if (pattern instanceof RegExp) {
+			return pattern.test(normalizedRelativePath);
+		}
+
+		return normalizedRelativePath.includes(pattern);
+	})) {
+		return true;
+	}
 
 	if (fileName.startsWith(".")) {
 		return true;

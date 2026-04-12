@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@lotexiu/typescript-config": "workspace:*",
-    "fs-extra": "^11.3.2",
+    "fs-extra": "^11.3.4",
     "typescript": "^5.9.3"
   },
-	"type": "module"
+  "type": "module"
 }

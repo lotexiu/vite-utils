@@ -3,13 +3,21 @@ import fs from "fs-extra";
 import type { PluginOption } from "vite";
 import { groupFilesByBase, loadRootPackage, ROOT_DIR } from "../utils.ts";
 
+type TPackageJsonPluginOptions = {
+	generateExports?: boolean;
+}
+
 /**
  * @returns {import('vite').Plugin}
  */
-export function packageJsonPlugin(desiredOutDirs?: string[]): PluginOption {
+export function packageJsonPlugin(
+	desiredOutDirs?: string[],
+	options?: TPackageJsonPluginOptions,
+): PluginOption {
 	const ignoredFiles: string[] = []
 	let compiledOutputPath: string;
 	let outDirs: string[];
+	const generateExports = options?.generateExports ?? true;
 
 	return {
 		name: "update-package-json-exports",
@@ -42,7 +50,6 @@ export function packageJsonPlugin(desiredOutDirs?: string[]): PluginOption {
 				const groupedAllFiles = groupFilesByBase(relativeDiscoveredFiles, compiledOutputPath);
 				const groupedFiles = groupFilesByBase(relativeExportedFiles, compiledOutputPath);
 				const pkg = loadRootPackage();
-				const previousExports = pkg.exports || {};
 				if (outDir == compiledOutputPath) {
 					delete pkg.scripts;
 					delete pkg.devDependencies;
@@ -52,13 +59,10 @@ export function packageJsonPlugin(desiredOutDirs?: string[]): PluginOption {
 					};
 					sanitizePackageDependencies(pkg);
 				}
-				generatePackageExports(pkg, groupedFiles, groupedAllFiles, outDir);
-				const [newPkg, prevPkg] = [
-					JSON.stringify(pkg.exports, null, 2),
-					JSON.stringify(previousExports, null, 2),
-				];
-				if (newPkg == prevPkg && ![null, undefined, "", "{}"].includes(newPkg) === false) {
-					return;
+				if (generateExports) {
+					generatePackageExports(pkg, groupedFiles, groupedAllFiles, outDir);
+				} else {
+					delete pkg.exports;
 				}
 				fs.writeJSON(path.resolve(ROOT_DIR, outDir, "package.json"), pkg, { spaces: 2 });
 			})
@@ -113,9 +117,10 @@ function generatePackageExports(
 			"d.cts":dcts,
 		} = groupedFiles["index"];
 
-		pkg.typings = dmts || dcts || dts || undefined;
-		pkg.module = mjs || js || cjs || undefined;
-		pkg.main = cjs || js || mjs || undefined;
+		pkg.types = `./${dmts || dcts || dts}`;
+		pkg.typings = `./${dmts || dcts || dts}`;
+		pkg.module = `./${mjs || js || cjs}`;
+		pkg.main = `./${cjs || js || mjs}`;
 		pkg.exports = {
 			".": compactExportEntry({
 				types: `./${path.relative(outDir, path.join(outDir, dmts || dcts || dts))}`,

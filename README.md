@@ -60,24 +60,25 @@ export default defineConfig({
 
 ---
 
-### 4. 📄 MainPackage (UpdatePackageJson)
+### 4. 📄 PackageJsonPlugin
 
-Gera `package.json` otimizado no `dist/` com apenas dependências necessárias.
+Atualiza `package.json` no `dist/` com metadados básicos para publicação.
 
 ```typescript
-import { updatePackageJsonPlugin } from '@lotexiu/vite-utils/plugins/MainPackage';
+import { packageJsonPlugin } from '@lotexiu/vite-utils/plugins/PackageJsonPlugin';
 
 export default defineConfig({
   plugins: [
-    updatePackageJsonPlugin(),
+    packageJsonPlugin(['dist', './'], { generateExports: false }),
   ],
 });
 ```
 
-**Benefícios:**
-- Remove devDependencies
-- Atualiza campos `main`, `module`, `types`
-- Gera package.json limpo para publicação
+**Comportamento:**
+- Remove `scripts` e `devDependencies` no `dist`
+- Atualiza `main`, `module`, `types` e `typings`
+- Remove dependências com prefixo `workspace:`, `file:` e `link:` no `dist`
+- Com `generateExports: false`, remove `exports` do `package.json`
 
 ---
 
@@ -125,7 +126,7 @@ import {
   betterOutDirCleanPlugin,
   copyAllSASSPlugin,
   excludeSASSPProcessPlugin,
-  updatePackageJsonPlugin,
+  packageJsonPlugin,
 } from '@lotexiu/vite-utils';
 
 export default defineConfig({
@@ -133,7 +134,7 @@ export default defineConfig({
     betterOutDirCleanPlugin(),
     copyAllSASSPlugin('src'),
     excludeSASSPProcessPlugin('src'),
-    updatePackageJsonPlugin(),
+    packageJsonPlugin(['dist', './'], { generateExports: false }),
   ],
   build: {
     lib: {
